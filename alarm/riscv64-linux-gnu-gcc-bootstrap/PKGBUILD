@@ -1,0 +1,61 @@
+#BASED ON: https://aur.archlinux.org/packages/aarch64-gcc-bootstrap
+
+_target=riscv64-linux-gnu
+pkgname=$_target-gcc-bootstrap
+pkgver=14.2.0
+pkgrel=1
+pkgdesc='The GNU Compiler Collection - cross compiler for RISCV64 target - bootstrap compiler'
+arch=(any)
+url='https://gcc.gnu.org/'
+license=(GPL LGPL FDL)
+depends=(libmpc zstd libisl $_target-binutils)
+makedepends=(git)
+provides=($_target-gcc)
+conflicts=($_target-gcc)
+options=(!emptydirs !strip staticlibs !lto)
+source=(https://ftp.gnu.org/gnu/gcc/gcc-$pkgver/gcc-$pkgver.tar.xz)
+
+sha256sums=('a7b39bc69cbf9e25826c5a60ab26477001f7c08d85cec04bc0e29cabed6f3cc9')
+
+b2sums=('87baf2a06dfa75d8fb6cd62c747ef1f57d3b9bbbe33a360d9ed3de4b4dbeaa8d920504c67e409bd9863414202c14fd854b46108e984418171205119216d03d3b')
+
+prepare() {
+  [[ ! -d gcc ]] && ln -s gcc-${pkgver/+/-} gcc
+  cd gcc
+
+  rm -rf "$srcdir"/gcc-build
+  mkdir "$srcdir"/gcc-build
+}
+
+build() {
+  cd gcc-build
+
+  # Credits @allanmcrae
+  # https://github.com/allanmcrae/toolchain/blob/f18604d70c5933c31b51a320978711e4e6791cf1/gcc/PKGBUILD
+  # TODO: properly deal with the build issues resulting from this
+  CFLAGS=${CFLAGS/-Werror=format-security/}
+  CXXFLAGS=${CXXFLAGS/-Werror=format-security/}
+
+  "$srcdir"/gcc/configure \
+      --prefix=/usr \
+      --with-sysroot=/usr/$_target/sys-root \
+      --libexecdir=/usr/lib \
+      --target=$_target \
+      --disable-nls \
+      --enable-languages=c \
+      --with-system-zlib \
+      --disable-multilib \
+      --disable-threads --without-headers \
+      --disable-shared --with-newlib --with-arch=rv64gc --with-abi=lp64d
+
+  make all-gcc all-target-libgcc
+}
+
+package() {
+  cd gcc-build
+
+  make install-strip-gcc install-strip-target-libgcc DESTDIR="$pkgdir"
+  # Remove files that conflict with host gcc package
+  rm -r "$pkgdir"/usr/{include,share}
+
+}
